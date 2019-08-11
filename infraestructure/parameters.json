@@ -1,0 +1,9 @@
+[{
+        "ParameterKey": "JenkinsPipeline",
+        "ParameterValue": "production"
+    },
+    {
+        "ParameterKey": "AccountId",
+        "ParameterValue": "825317146186"
+    }
+]

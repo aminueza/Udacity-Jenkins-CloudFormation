@@ -1,0 +1,170 @@
+---
+Description: >
+  Amanda Souza / Udacity 2019 / Jenkins Project
+  CloudFormation file to create VPC.
+Parameters:
+  JenkinsPipeline:
+    Description: An Enviroment name to tag resources
+    ConstraintDescription: Your env is invalid! Please, type an environment from the list
+    Type: String
+    Default: sandbox
+    AllowedValues:
+      - sandbox #env to developers create and test web apps
+      - staging #env to pre-live web apps
+      - production #env to add web app to production
+
+Mappings:
+  DefaultConfig:
+    VPC:
+      CIDR: 10.0.0.0/16
+    Public0:
+      CIDR: 10.0.0.0/24
+    Private0:
+      CIDR: 10.0.1.0/24
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      CidrBlock: !FindInMap
+        - DefaultConfig
+        - VPC
+        - CIDR
+      Tags:
+        - Key: Network
+          Value: Public
+        - Key: Name
+          Value: !Ref JenkinsPipeline
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Network
+          Value: Public
+        - Key: Name
+          Value: !Ref JenkinsPipeline
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet0:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !FindInMap
+        - DefaultConfig
+        - Public0
+        - CIDR
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Network
+          Value: Public
+        - Key: Name
+          Value: !Sub ${JenkinsPipeline} Public Subnet (AZ0)
+
+  PrivateSubnet0:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: !FindInMap
+        - DefaultConfig
+        - Private0
+        - CIDR
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Network
+          Value: Private
+        - Key: Name
+          Value: !Sub ${JenkinsPipeline} Private Subnet (AZ0)
+
+  ElasticIP0:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachment
+    Properties:
+      Domain: vpc
+
+  NatGateway0:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt ElasticIP0.AllocationId
+      SubnetId: !Ref PublicSubnet0
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Network
+          Value: Public
+        - Key: Name
+          Value: !Sub ${JenkinsPipeline}-public-route-table
+
+  DefaultPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRTAssociation0:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet0
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable0:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Network
+          Value: Private
+        - Key: Name
+          Value: !Sub ${JenkinsPipeline}-private-route-table-0
+
+  DefaultPrivateRoute0:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable0
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway0
+
+  PrivateSubnetRTAssociation0:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet0
+      RouteTableId: !Ref PrivateRouteTable0
+
+Outputs:
+  VPCID:
+    Description: The VPCId of VPC
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${JenkinsPipeline}-VPCID
+
+  PublicSubnetID0:
+    Description: The subnetId of public subnet 0 of (AZ0)
+    Value: !Ref PublicSubnet0
+    Export:
+      Name: !Sub ${JenkinsPipeline}-PUB-NET0
+
+  PrivateSubnetID0:
+    Description: The subnetId of PrivateSubnet0 of (AZ0)
+    Value: !Ref PrivateSubnet0
+    Export:
+      Name: !Sub ${JenkinsPipeline}-PRV-NET0
+
+  SecurityGroupDefault:
+    Description: The ID of DefaultSecurityGroup
+    Value: !GetAtt VPC.DefaultSecurityGroup
+    Export:
+      Name: !Sub ${JenkinsPipeline}-SG

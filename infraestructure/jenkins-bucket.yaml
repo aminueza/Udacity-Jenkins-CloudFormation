@@ -1,0 +1,87 @@
+---
+Description: >
+  Amanda Souza / Udacity 2019 /Jenkins
+  CloudFormation file to create a S3 buckets 
+  web app using CloudFormation.
+Parameters:
+  JenkinsPipeline:
+    Description: "An Enviroment name to tag resources"
+    ConstraintDescription: "Your env is invalid! Please, type an environment from the list"
+    Type: "String"
+    AllowedValues:
+      - "sandbox" #env to developers create and test web apps
+      - "staging" #env to pre-live web apps
+      - "production" #env to add web app to production
+  AccountId:
+    Description: "Account id"
+    Type: "String"
+
+Resources:
+  JenkinsPipelineS3:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: jenkins-udacity-pipeline
+      AccessControl: PublicRead
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: error.html
+    DeletionPolicy: Delete
+
+  JenkinsPipelinePolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref JenkinsPipelineS3
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: s3:GetObject
+            Resource: !Join ["", ["arn:aws:s3:::", !Ref "JenkinsPipelineS3", "/*"]]
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+
+  JenkinsKeyPar:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: jenkins-udacity-key
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+    DeletionPolicy: Delete
+
+  JenkinsKeyParPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref JenkinsKeyPar
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Action: 
+              - s3:GetObject
+              - s3:PutObject
+              - s3:GetObjectAcl
+              - s3:PutObjectAcl
+            Resource: !Join ["", ["arn:aws:s3:::", !Ref "JenkinsKeyPar", "/*"]]
+            Principal:
+              AWS: !Sub arn:aws:iam::${AWS::AccountId}:root
+
+Outputs:
+  WebsiteURL:
+    Value: !GetAtt [JenkinsPipelineS3, WebsiteURL]
+    Description: URL for website hosted on S3
+  WebsiteSecureURL:
+    Value: !Join ["", ["https://", !GetAtt [JenkinsPipelineS3, DomainName]]]
+    Description: Secure URL for website hosted on S3
+  JenkinsKeyParT:
+    Value: !GetAtt [JenkinsKeyPar, WebsiteURL]
+    Description: URL for key hosted on S3
+  JenkinsKeyParTSecureURL:
+    Value: !Join ["", ["https://", !GetAtt [JenkinsKeyPar, DomainName]]]
+    Description: Secure URL for key hosted on S3
